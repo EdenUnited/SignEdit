@@ -1,4 +1,4 @@
-package at.haha.signedit;
+package at.haha007.signedit;
 
 import org.bukkit.plugin.java.JavaPlugin;
 

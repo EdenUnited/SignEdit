@@ -1,4 +1,4 @@
-package at.haha.signedit;
+package at.haha007.signedit;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
@@ -13,6 +13,7 @@ import net.minecraft.network.protocol.game.PacketPlayOutOpenSignEditor;
 import net.minecraft.server.level.EntityPlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.Tag;
+import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -157,7 +158,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
         Component[] lines = signs.get(player);
         if (lines == null) {
             lines = new Component[4];
-            Arrays.fill(lines, Component.text());
+            Arrays.fill(lines, Component.text(""));
         }
 
 
@@ -175,9 +176,18 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
     @EventHandler
     void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.LEFT_CLICK_BLOCK) return;
-        if (!enabledPlayers.contains(event.getPlayer())) return;
-        if (!(Objects.requireNonNull(event.getClickedBlock()).getState() instanceof Sign)) return;
-        signs.put(event.getPlayer(), ((Sign) Objects.requireNonNull(event.getClickedBlock()).getState()).lines().toArray(new Component[0]));
+
+        Player player = event.getPlayer();
+        if (!enabledPlayers.contains(player)) return;
+        if(!Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
+
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+        if (!(block.getState(false) instanceof Sign sign)) return;
+
+        //cancel for creative players
+        event.setCancelled(true);
+        signs.put(event.getPlayer(), sign.lines().toArray(new Component[0]));
     }
 
     @EventHandler

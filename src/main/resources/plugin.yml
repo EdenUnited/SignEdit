@@ -1,6 +1,6 @@
 name: SignEdit
 version: ${project.version}
-main: at.haha.signedit.SignEdit
+main: at.haha007.signedit.SignEdit
 api-version: 1.17
 authors: [Haha]
 description: Sign Editor
