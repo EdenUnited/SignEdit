@@ -209,7 +209,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
     @SneakyThrows
     private Channel getChannel(Player player) {
         EntityPlayer nmsPlayer = (EntityPlayer) player.getClass().getDeclaredMethod("getHandle").invoke(player);
-        return nmsPlayer.b.a.k;
+        return nmsPlayer.b.a.m;
     }
 
 
