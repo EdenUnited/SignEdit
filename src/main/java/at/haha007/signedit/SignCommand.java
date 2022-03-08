@@ -1,16 +1,14 @@
 package at.haha007.signedit;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import lombok.SneakyThrows;
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.ProtocolManager;
+import com.comphenix.protocol.events.PacketAdapter;
+import com.comphenix.protocol.events.PacketEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.md_5.bungee.api.ChatColor;
-import net.minecraft.network.protocol.game.PacketPlayOutOpenSignEditor;
-import net.minecraft.server.level.EntityPlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
@@ -60,6 +58,14 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
         for (String key : cfg.getKeys(false)) {
             messages.put(key, cfg.getString(key));
         }
+
+        ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
+        protocolManager.addPacketListener(new PacketAdapter(plugin, PacketType.Play.Server.OPEN_SIGN_EDITOR) {
+            public void onPacketSending(PacketEvent event) {
+                if (enabledPlayers.contains(event.getPlayer()))
+                    event.setCancelled(true);
+            }
+        });
     }
 
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
@@ -94,7 +100,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be executed by players!");
+            sender.sendMessage(Component.text("This command can only be executed by players!", NamedTextColor.RED));
             return true;
         }
 
@@ -103,11 +109,9 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
             // ENABLE / DISABLE
             if (enabledPlayers.contains(player)) {
                 enabledPlayers.remove(player);
-                onDisable(player);
                 player.sendMessage(messages.get("sign_disable"));
             } else {
                 enabledPlayers.add(player);
-                onEnable(player);
                 player.sendMessage(messages.get("sign_enable"));
             }
             return true;
@@ -179,7 +183,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
         Player player = event.getPlayer();
         if (!enabledPlayers.contains(player)) return;
-        if(!Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
+        if (!Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
 
         Block block = event.getClickedBlock();
         if (block == null) return;
@@ -196,28 +200,5 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
         signs.remove(event.getPlayer());
     }
 
-    private void onEnable(Player player) {
-        Channel channel = getChannel(player);
-        Objects.requireNonNull(channel).pipeline().addBefore("packet_handler", "sign_packet_handler", new SignPacketRemover());
-    }
-
-    private void onDisable(Player player) {
-        Channel channel = getChannel(player);
-        Objects.requireNonNull(channel).pipeline().remove("sign_packet_handler");
-    }
-
-    @SneakyThrows
-    private Channel getChannel(Player player) {
-        EntityPlayer nmsPlayer = (EntityPlayer) player.getClass().getDeclaredMethod("getHandle").invoke(player);
-        return nmsPlayer.b.a.m;
-    }
-
-
-    private static class SignPacketRemover extends ChannelDuplexHandler {
-        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-            if (msg instanceof PacketPlayOutOpenSignEditor) return;
-            super.write(ctx, msg, promise);
-        }
-    }
 
 }
