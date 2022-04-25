@@ -27,6 +27,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,6 +41,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
     private final Set<Player> enabledPlayers = new HashSet<>();
     private final HashMap<String, String> messages = new HashMap<>();
     private final HashMap<Player, Component[]> signs = new HashMap<>();
+    private final Plugin plugin;
 
 
     //sign -> toggles enabled
@@ -49,8 +51,8 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
     //if enabled placed -> written automatic
 
     public SignCommand(JavaPlugin plugin) {
+        this.plugin = plugin;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-
         plugin.saveResource("messages.yml", false);
 
         File file = new File(plugin.getDataFolder(), "messages.yml");
@@ -156,25 +158,25 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
         if (!enabledPlayers.contains(player)) return;
         if (!player.hasPermission("signedit.sign.command")) return;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!(event.getBlock().getState() instanceof Sign sign)) return;
 
-        Sign sign = ((Sign) event.getBlock().getState());
+            Component[] lines = signs.get(player);
+            if (lines == null) {
+                lines = new Component[4];
+                Arrays.fill(lines, Component.text(""));
+            }
 
-        Component[] lines = signs.get(player);
-        if (lines == null) {
-            lines = new Component[4];
-            Arrays.fill(lines, Component.text(""));
-        }
-
-
-        sign.setEditable(false);
-        SignChangeEvent signEvent = new SignChangeEvent(event.getBlock(), player, Arrays.asList(lines));
-        Bukkit.getServer().getPluginManager().callEvent(signEvent);
-        if (signEvent.isCancelled()) return;
-        List<Component> l = signEvent.lines();
-        for (int i = 0; i < l.size(); i++) {
-            sign.line(i, l.get(i));
-        }
-        sign.update();
+            sign.setEditable(false);
+            SignChangeEvent signEvent = new SignChangeEvent(event.getBlock(), player, Arrays.asList(lines));
+            Bukkit.getServer().getPluginManager().callEvent(signEvent);
+            if (signEvent.isCancelled()) return;
+            List<Component> l = signEvent.lines();
+            for (int i = 0; i < l.size(); i++) {
+                sign.line(i, l.get(i));
+            }
+            sign.update();
+        });
     }
 
     @EventHandler
