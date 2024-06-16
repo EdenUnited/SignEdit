@@ -6,6 +6,8 @@ authors: [Haha]
 description: Sign Editor
 depend:
   - ProtocolLib
+softdepend:
+  - CraftBook
 commands:
   sign:
     description: sign editor command

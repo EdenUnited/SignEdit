@@ -13,10 +13,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import org.bukkit.block.sign.Side;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -35,7 +33,7 @@ import java.io.File;
 import java.util.*;
 import java.util.function.Function;
 
-public class SignCommand implements CommandExecutor, TabCompleter, Listener {
+public class SignCommand implements Listener {
     private static final LegacyComponentSerializer serializer = LegacyComponentSerializer.legacyAmpersand();
 
     private final Set<Player> enabledPlayers = new HashSet<>();
@@ -70,12 +68,12 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
         });
     }
 
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull String[] args) {
         if (!(sender instanceof Player player)) return null;
         if (!enabledPlayers.contains(sender)) return List.of();
         if (!sender.hasPermission("signedit.sign.command")) return List.of();
 
-        if (args.length == 1) return List.of("1", "2", "3", "4");
+        if (args.length == 1) return List.of("f1", "f2", "f3", "f4", "b1", "b2", "b3", "b4");
 
         if (!signs.containsKey(player)) return List.of();
 
@@ -90,17 +88,21 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
             List<String> l = List.of();
             String line = args[0];
             switch (line) {
-                case "1" -> l = f.apply(0);
-                case "2" -> l = f.apply(1);
-                case "3" -> l = f.apply(2);
-                case "4" -> l = f.apply(3);
+                case "f1" -> l = f.apply(0);
+                case "f2" -> l = f.apply(1);
+                case "f3" -> l = f.apply(2);
+                case "f4" -> l = f.apply(3);
+                case "b1" -> l = f.apply(4);
+                case "b2" -> l = f.apply(5);
+                case "b3" -> l = f.apply(6);
+                case "b4" -> l = f.apply(7);
             }
             return l;
         }
         return List.of();
     }
 
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("This command can only be executed by players!", NamedTextColor.RED));
             return true;
@@ -120,17 +122,21 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
         }
 
 
-        int line;
-        try {
-            line = Integer.parseInt(args[0]);
-        } catch (NumberFormatException e) {
-            player.sendMessage(messages.get("line_not_number"));
-            return true;
-        }
-        if (line < 1 || line > 4) {
-            player.sendMessage(messages.get("line_out_of_bounds"));
-            return true;
-        }
+        int line = switch (args[0]) {
+            case "f1" -> 1;
+            case "f2" -> 2;
+            case "f3" -> 3;
+            case "f4" -> 4;
+            case "b1" -> 5;
+            case "b2" -> 6;
+            case "b3" -> 7;
+            case "b4" -> 8;
+            default -> {
+                player.sendMessage(messages.get("line_not_number"));
+                yield -1;
+            }
+        };
+        if (line == -1) return true;
 
         boolean colorPermission = player.hasPermission("signedit.sign.color");
 
@@ -138,7 +144,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
         Component[] sign = signs.get(player);
         if (sign == null) {
-            sign = new Component[4];
+            sign = new Component[8];
             Arrays.fill(sign, Component.text(""));
         }
 
@@ -152,7 +158,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     void onBlockPlace(BlockPlaceEvent event) {
-        if (!Tag.SIGNS.isTagged(event.getBlock().getType())) return;
+        if (!Tag.ALL_SIGNS.isTagged(event.getBlock().getType())) return;
 
         final Player player = event.getPlayer();
 
@@ -163,17 +169,19 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
             Component[] lines = signs.get(player);
             if (lines == null) {
-                lines = new Component[4];
+                lines = new Component[8];
                 Arrays.fill(lines, Component.text(""));
             }
 
-            sign.setEditable(false);
-            SignChangeEvent signEvent = new SignChangeEvent(event.getBlock(), player, Arrays.asList(lines));
+            SignChangeEvent signEvent = new SignChangeEvent(event.getBlock(), player, Arrays.asList(lines), Side.FRONT);
             Bukkit.getServer().getPluginManager().callEvent(signEvent);
             if (signEvent.isCancelled()) return;
             List<Component> l = signEvent.lines();
-            for (int i = 0; i < l.size(); i++) {
-                sign.line(i, l.get(i));
+            for (int i = 0; i < 4; i++) {
+                sign.getSide(Side.FRONT).line(i, l.get(i));
+            }
+            for (int i = 4; i < 8; i++) {
+                sign.getSide(Side.BACK).line(i - 4, l.get(i));
             }
             sign.update();
         });
@@ -185,7 +193,7 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
         Player player = event.getPlayer();
         if (!enabledPlayers.contains(player)) return;
-        if (!Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
+        if (!Tag.ALL_SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
 
         Block block = event.getClickedBlock();
         if (block == null) return;
@@ -193,7 +201,14 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
 
         //cancel for creative players
         event.setCancelled(true);
-        signs.put(event.getPlayer(), sign.lines().toArray(new Component[0]));
+        Component[] lines = new Component[8];
+        for (int i = 0; i < 4; i++) {
+            lines[i] = sign.getSide(Side.FRONT).line(i);
+        }
+        for (int i = 4; i < 8; i++) {
+            lines[i] = sign.getSide(Side.BACK).line(i - 4);
+        }
+        signs.put(event.getPlayer(), lines);
     }
 
     @EventHandler
@@ -203,4 +218,26 @@ public class SignCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
 
+    public boolean isEnabled(Player player) {
+        return enabledPlayers.contains(player);
+    }
+
+    public void setEnabled(Player player, boolean enabled) {
+        if (enabled) {
+            enabledPlayers.add(player);
+        } else {
+            enabledPlayers.remove(player);
+        }
+    }
+
+    public void setLines(Player player, Component[] lines) {
+        Component[] sign = new Component[8];
+        Arrays.fill(sign, Component.text(""));
+        System.arraycopy(lines, 0, sign, 0, Math.min(lines.length, 4));
+        signs.put(player, sign);
+    }
+
+    public Component[] getLines(Player player) {
+        return signs.get(player);
+    }
 }
